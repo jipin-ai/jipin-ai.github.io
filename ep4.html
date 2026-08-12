@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 4 集 · 编排者成了瓶颈：多 Agent 系统的吞吐暗礁</title>
+<meta name="description" content="编排 Agent 看似死机实则忙死：单会话串行处理，消息静默排队超时。解法是子代理扇出并行。Multi-agent orchestrator bottleneck: subagent fan-out, 3 parallel tasks in 9.3s vs 20s serial.">
+<style>
+body{max-width:760px;margin:0 auto;padding:2em 1.2em;font-family:Georgia,'Songti SC',serif;line-height:1.8;color:#222}
+h1{font-size:1.6em;line-height:1.4}
+h3{margin-top:2em}
+pre{background:#f6f8fa;padding:1em;overflow-x:auto;font-size:.9em;line-height:1.5}
+code{background:#f6f8fa;padding:.1em .3em}
+blockquote{border-left:4px solid #d0d7de;margin:1.5em 0;padding:.5em 1em;color:#555;background:#fafbfc}
+.tldr{background:#f0f6ff;border:1px solid #c8d9f0;padding:1em;font-size:.95em}
+nav{font-size:.9em;color:#666;margin:1.5em 0}
+a{color:#1a5fb4}
+</style>
+</head>
+<body>
+<nav><a href="index.html">← 连载目录</a> · <a href="https://github.com/jipin-ai">GitHub</a> · <a href="https://github.com/jipin-ai/agent-pipeline-engine">配套引擎</a></nav>
+<h1>第 4 集 · 编排者成了瓶颈：多 Agent 系统的吞吐暗礁</h1>
+<p><i>The orchestrator is the bottleneck: fixing a multi-agent system's hidden serial chokepoint</i></p>
+<div class='tldr'><b>TL;DR</b> — Our orchestrator agent looked dead — 60-second timeouts everywhere — but it was just busy: one session, one task at a time, messages queuing silently until they timed out. The fix was subagent fan-out (6 concurrent children, depth 2). Proof: 3 parallel tasks done in 9.3s vs ~20s serial.</div>
+<blockquote>三个并发任务总耗时 9.3 秒，串行预期约 20 秒——编排者的并行化不是性能优化，是多 Agent 系统的生死线。编排节点容量 = 峰值并发 × 单条时延。</blockquote>
+<p>我们的管道里有个角色叫 ORC，编排者。所有节点的消息都汇到它那里，拆解、派活、收确认、回答询问，全归它管。五站接力的设计里，它是那个站在中间喊号子的人。</p>
+<p>八月初的一天，各个节点开始报：ORC 又不动了。消息发过去，六十秒，超时，断开。重发，还是超时。从对端看过去，症状跟死机一模一样。</p>
+<p>但 ORC 没死。它活着，而且活得很辛苦——它正在处理上一条消息。问题出在它的工作方式：一个会话，一次只能干一件事。上一条任务复杂，处理要几分钟，这几分钟里其他所有消息就在门口排队。排到六十秒，连接先断了。对端不知道它在忙，只知道它&quot;没接&quot;。</p>
+<p>复盘的时候算了笔账。假设高峰期五个节点同时发消息，每条平均处理两分钟，单线程串行的 ORC 处理完最后一波要十分钟。而所有调用方的耐心只有六十秒。也就是说，<b>不是 ORC 能力不行，是它的吞吐结构注定要超时</b>。管道修了五站，最细的一段在编排者自己身上。</p>
+<p>解法不是换更快的模型，是让它分身。给它配了子代理扇出：主会话只做调度判断，活计派给临时分身去干，最多同时六个，分身还可以再带分身。配置就三行，但效果要拿数据说话。实测：三个并发任务砸过去，总耗时 9.3 秒。如果还是串行，这组任务应该花 20 秒上下。9.3 对 20，真并行，不是数字游戏。</p>
+<p>这里有个细节值得说。分身不是白来的，每个分身都是一次独立的模型调用，要花钱。所以并行度不是越高越好，六这个数字是按&quot;高峰消息量&quot;反推的，不是拍脑袋。编排节点的容量规划，算法和给服务器算容量一样：峰值并发乘单条时延，再留余量。</p>
+<p><b>这一集的方法论</b>：</p>
+<p>1. 多 Agent 系统卡顿时，先查编排者，别先查干活的。单点串行口是最常见的隐性瓶颈</p>
+<p>2. 并行化的真伪要用总耗时验证：并发 N 个任务，总时间应该接近单个任务的时间，而不是 N 倍</p>
+<p>3. 编排节点的容量按峰值算，不按均值算。消息系统的排队是沉默的，它不报警，它直接让你超时</p>
+<p>&gt; <b>可摘引</b>：三个并发任务总耗时 9.3 秒，串行预期约 20 秒——编排者的并行化不是性能优化，是多 Agent 系统的生死线。</p>
+<p>下一集讲安全：我们给 Agent 的命令白名单开过一个洞，洞里能看光所有配置文件。</p>
+<hr>
+<nav><a href='ep3.html'>← 上一集</a> · <a href='index.html'>目录</a></nav>
+</body>
+</html>

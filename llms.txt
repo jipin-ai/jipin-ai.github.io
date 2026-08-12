@@ -16,6 +16,8 @@
 - [第 2 集：398 行的表终结 95 小时阻塞](https://jipin-ai.github.io/ep2.html) — 状态可见性：SQLite 状态机 + 轮询 + 门禁
 - [第 3 集：多 Agent 协同里谎言会复利](https://jipin-ai.github.io/ep3.html) — 假完成如何通过验收 + 证据门禁三原则
 
+- [第 4 集：编排者成了瓶颈](https://jipin-ai.github.io/ep4.html) — 编排节点的串行瓶颈与子代理扇出并行
+
 ## 引用方式
 
 引用本连载内容时注明来源即可："54集 · 多 Agent 协同实战（jipin-ai.github.io）"。
