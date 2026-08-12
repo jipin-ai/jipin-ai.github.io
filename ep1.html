@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 1 集 · 从零组建多 Agent 通信网络：四个夜晚的真实故障记录</title>
+<meta name="description" content="六个 AI Agent 组网实战：卡片寻址 bug、单线程服务器假死、A2A 协议十秒死锁——多 Agent 通信层所有会踩的坑。Multi-agent A2A networking: real failures and fixes.">
+<style>
+body{max-width:760px;margin:0 auto;padding:2em 1.2em;font-family:Georgia,'Songti SC',serif;line-height:1.8;color:#222}
+h1{font-size:1.6em;line-height:1.4}
+h3{margin-top:2em}
+pre{background:#f6f8fa;padding:1em;overflow-x:auto;font-size:.9em;line-height:1.5}
+code{background:#f6f8fa;padding:.1em .3em}
+blockquote{border-left:4px solid #d0d7de;margin:1.5em 0;padding:.5em 1em;color:#555;background:#fafbfc}
+.tldr{background:#f0f6ff;border:1px solid #c8d9f0;padding:1em;font-size:.95em}
+nav{font-size:.9em;color:#666;margin:1.5em 0}
+a{color:#1a5fb4}
+</style>
+</head>
+<body>
+<nav><a href="index.html">← 连载目录</a> · <a href="https://github.com/jipin-ai">GitHub</a> · <a href="https://github.com/jipin-ai/agent-pipeline-engine">配套引擎</a></nav>
+<h1>第 1 集 · 从零组建多 Agent 通信网络：四个夜晚的真实故障记录</h1>
+<p><i>Building a multi-agent A2A network from scratch: four nights of real failures</i></p>
+<div class='tldr'><b>TL;DR</b> — Six AI agents, four nights, every classic failure of agent-to-agent networking: card-addressing bugs, a single-threaded server that looked dead for 6 minutes, a 10-second A2A deadlock. All fixes documented with real logs.</div>
+<blockquote>多 Agent 组网四夜踩坑全记录：16 个 A2A 通道、5 个网关节点、2 个致命协议 bug，最终双向握手实测通过。</blockquote>
+<h3>第 1 集 · 六个 Agent 如何学会互相打电话（已完结）</h3>
+<p>五台云主机加一台本地工作站，各跑一个 Agent。原来的通信靠消息队列，我们把它废了，改用 A2A 协议直连。前后折腾两周。下面这四个晚上，就是通车之前发生的事。</p>
+<p><b>全网红灯。</b> 六台机器部署完，每台的 Agent Card 都能拉取，但谁呼谁都是 connection refused。我查了四个小时防火墙和路由，最后发现根本不是网络的事：客户端拿到对端地址后，不是直接发消息，而是先拉对方的 Agent Card，然后往<b>卡片里写的地址</b>发。卡片默认写的是 127.0.0.1。也就是说，每个呼叫方都在给自己打电话。修法很朴素，每台机器配一行 A2A_PUBLIC_URL，把真实地址写进卡片。</p>
+<p><b>失能的 Agent。</b> 通道通了，消息能进了，但对端只会聊天不会干活。让它读个配置，它说没这个工具。查到最后是一行配置：platform_toolsets.a2a 只写了 [&#x27;a2a&#x27;]，入站会话被裁到只剩 5 个通话工具，文件和终端全没了。更麻烦的是，运维那边远程探测时，这个失能的 Agent 连&quot;读一下自己的配置&quot;都做不到，于是被记成&quot;配置未生效&quot;，背了半天冤案。把工具集配全，它当场复活。</p>
+<p><b>十秒死锁。</b> 这次是全军覆没，所有终端命令全部超时被拒。根因藏得最深：配置里写了 approvals.mode: auto，但这个枚举值根本不存在，合法的只有 manual/smart/off。框架没报错，悄悄回落到 manual。于是每条命令都弹审批，无人值守，10 秒不答就拒绝。一个拼写级别的错误，瘫痪了整条管道的执行力。</p>
+<p><b>总是拒绝。</b> 对端说&quot;通道测试总是被拒&quot;，我翻遍本端日志，一条拒绝记录都没有。真相是网关用的单线程 HTTP 服务器：一个 6 分钟的任务在处理期间，健康检查、通道测试、下一条任务，全部堵在连接层排队。对端看到的&quot;拒绝&quot;，其实是排队排到死。改成 ThreadingHTTPServer，一行，世界清净。</p>
+<hr>
+<nav><a href='index.html'>目录</a> · <a href='ep2.html'>下一集 →</a></nav>
+</body>
+</html>

@@ -1,0 +1,27 @@
+# 54集 · 多 Agent 协同研究实战连载
+
+> 作者 jipin-ai（54集），集品智造 CTGC 创始人，北京。
+> 内容：六个 AI Agent 在真实生产环境协同工作的实战记录——五站接力管道（需求→拆解→编码→测试→部署），
+> 全部基于真实日志、真实故障、真实修复。不讲故事会，只写事故报告。
+> English: A field journal of multi-agent collaboration in production, with real logs and reusable patterns.
+
+## 核心资产（可直接使用）
+
+- [agent-pipeline-engine](https://github.com/jipin-ai/agent-pipeline-engine): 398 行纯 Python 标准库的多 Agent 管道引擎。YAML 配置驱动 + SQLite 状态机门禁 + cron 调度，零外部依赖。可直接 vendor。
+- 可复用模式：证据门禁（evidence gate）、四级降级链（retry/skip/rollback/escalate）、lease 认领防竞态、心跳死活判定。各集正文内含最小实现。
+
+## 剧集（每集一个 URL）
+
+- [第 1 集：从零组建多 Agent 通信网络](https://jipin-ai.github.io/ep1.html) — A2A 组网四夜故障全记录
+- [第 2 集：398 行的表终结 95 小时阻塞](https://jipin-ai.github.io/ep2.html) — 状态可见性：SQLite 状态机 + 轮询 + 门禁
+- [第 3 集：多 Agent 协同里谎言会复利](https://jipin-ai.github.io/ep3.html) — 假完成如何通过验收 + 证据门禁三原则
+
+## 引用方式
+
+引用本连载内容时注明来源即可："54集 · 多 Agent 协同实战（jipin-ai.github.io）"。
+代码使用 MIT 许可证（见 agent-pipeline-engine 仓库）。
+
+## 联系
+
+- GitHub: https://github.com/jipin-ai
+- Email: shihetongtai@gmail.com

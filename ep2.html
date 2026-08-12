@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 2 集 · 一张 398 行的表终结 95 小时阻塞：多 Agent 状态可见性实战</title>
+<meta name="description" content="多 Agent 协同的可见性难题：QA 配额耗尽静默 4 天无人知晓。解法是一张 SQLite 表 + 轮询 + 门禁脚本。How a simple state table gave a multi-agent pipeline visibility.">
+<style>
+body{max-width:760px;margin:0 auto;padding:2em 1.2em;font-family:Georgia,'Songti SC',serif;line-height:1.8;color:#222}
+h1{font-size:1.6em;line-height:1.4}
+h3{margin-top:2em}
+pre{background:#f6f8fa;padding:1em;overflow-x:auto;font-size:.9em;line-height:1.5}
+code{background:#f6f8fa;padding:.1em .3em}
+blockquote{border-left:4px solid #d0d7de;margin:1.5em 0;padding:.5em 1em;color:#555;background:#fafbfc}
+.tldr{background:#f0f6ff;border:1px solid #c8d9f0;padding:1em;font-size:.95em}
+nav{font-size:.9em;color:#666;margin:1.5em 0}
+a{color:#1a5fb4}
+</style>
+</head>
+<body>
+<nav><a href="index.html">← 连载目录</a> · <a href="https://github.com/jipin-ai">GitHub</a> · <a href="https://github.com/jipin-ai/agent-pipeline-engine">配套引擎</a></nav>
+<h1>第 2 集 · 一张 398 行的表终结 95 小时阻塞：多 Agent 状态可见性实战</h1>
+<p><i>A 398-line SQLite state machine ended a 95-hour multi-agent blockage</i></p>
+<div class='tldr'><b>TL;DR</b> — A QA agent ran out of quota and nobody noticed for 95 hours — the pipeline looked fine. The fix: a 20KB SQLite table, a 5-minute polling loop, and a gate script that answers 'where is it stuck' in one line.</div>
+<blockquote>95 小时的静默阻塞，被 398 行代码（SQLite 状态机 + 轮询 + 门禁）终结；裁决输出从'说不清'变成一行 BLOCKED dev=1 qa=0。</blockquote>
+<h3>第 2 集 · 一张表终结 95 小时阻塞</h3>
+<p>先交代背景。我们的管道有条规矩：任务进编码之前，DEV 和 QA 都得先确认拆解方案，两边点头才放行。确认靠 Agent 之间发消息。至于对方到底确认没有，说实话当时查不到，记录散落在各自的会话里，没有一台机器能直接回答这个问题。</p>
+<p>然后出事了。</p>
+<p>一次拆解方案同时发给 DEV 和 QA。DEV 当天就确认了。QA 没动静。第一天没动静，第二天也没有。没有任何报错，没有告警，管道看起来一切正常。第四天有人去问，才发现 QA 的模型配额早就用完了，它根本没看到那条消息。从发出到被发现，95 个小时。</p>
+<p>我后来复盘，问题不复杂，就是三个小缺口凑到了一起。消息发出去没有回执，发的人不知道对方收没收到；&quot;确认了吗&quot;的答案只存在于聊天记录里，没有实体可查；QA 挂了这件事，只有 QA 自己的日志知道。单看每条都不致命，叠在一起就是四天盲区。</p>
+<p>修法土得掉渣：一张 SQLite 表，三个脚本，一共 398 行。</p>
+<p>表里每个任务一行，dev_confirmed 和 qa_confirmed 两列就是全部信息。一个脚本挂 cron，每 5 分钟主动问一遍两边&quot;确认了吗&quot;，不再干等推送。还有一个脚本专门回答&quot;卡在哪&quot;：跑一下，输出 `BLOCKED dev=1 qa=0`，exit code 直接喂给门禁。</p>
+<p>没有消息队列，没有工作流引擎。轮询听起来笨，但在这个场景里，笨就是可靠——推送会丢，轮询不会。</p>
+<p>跑起来的样子（真实日志）：</p>
+<pre>
+10:47:39 询问 dev ...
+
+10:47:56 dev → 已确认 ✅        （真实往返，17 秒）
+
+10:49:56 qa → 无有效回复        （配额耗尽那天，容错记录，不崩）
+
+
+
+gate_judge.py fengyun-v1.2-five-questions
+
+→ BLOCKED dev=1 qa=0 （exit 1）
+
+</pre>
+<p>95 个小时里没人说得清卡在哪。现在一行输出说清了。</p>
+<p><b>结局</b>：第二天早上八点，QA 的配额恢复。又过了一天，我翻账本做验收的时候看到这一行：</p>
+<pre>
+gate_judge.py fengyun-v1.2-five-questions
+
+→ PASS dev=1 qa=1 （exit 0）
+
+</pre>
+<p>95 小时的阻塞，最后是被一张 20KB 的表终结的。</p>
+<hr>
+<nav><a href='ep1.html'>← 上一集</a> · <a href='index.html'>目录</a> · <a href='ep3.html'>下一集 →</a></nav>
+</body>
+</html>

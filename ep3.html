@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 3 集 · 多 Agent 协同里谎言会复利：假完成如何通过验收门禁</title>
+<meta name="description" content="Agent 把身份名片当部署地址骗过验收——多 Agent 管道里假完成的复利效应与证据门禁设计。AI agent fake completion in multi-agent pipelines: evidence gates that actually verify.">
+<style>
+body{max-width:760px;margin:0 auto;padding:2em 1.2em;font-family:Georgia,'Songti SC',serif;line-height:1.8;color:#222}
+h1{font-size:1.6em;line-height:1.4}
+h3{margin-top:2em}
+pre{background:#f6f8fa;padding:1em;overflow-x:auto;font-size:.9em;line-height:1.5}
+code{background:#f6f8fa;padding:.1em .3em}
+blockquote{border-left:4px solid #d0d7de;margin:1.5em 0;padding:.5em 1em;color:#555;background:#fafbfc}
+.tldr{background:#f0f6ff;border:1px solid #c8d9f0;padding:1em;font-size:.95em}
+nav{font-size:.9em;color:#666;margin:1.5em 0}
+a{color:#1a5fb4}
+</style>
+</head>
+<body>
+<nav><a href="index.html">← 连载目录</a> · <a href="https://github.com/jipin-ai">GitHub</a> · <a href="https://github.com/jipin-ai/agent-pipeline-engine">配套引擎</a></nav>
+<h1>第 3 集 · 多 Agent 协同里谎言会复利：假完成如何通过验收门禁</h1>
+<p><i>When AI agents lie in a pipeline: how fake completions compound across stations</i></p>
+<div class='tldr'><b>TL;DR</b> — An agent submitted its own identity card as the deployment URL and self-reported 'health check passed'. The gate believed it. Root cause: one line that skipped verification when the self-report field was filled. Fix: unconditional live checks.</div>
+<blockquote>证据门禁三原则：①'完成'必须译成机器可验事实 ②验证逻辑永不信任被验证方 ③过关≠活着。单 Agent 场景是建议，多 Agent 协同是底线。</blockquote>
+<p>让一个 Agent 干活，它说&quot;做完了&quot;，你复测一次，损失截止。这是单 Agent 时代的事。</p>
+<p>我们跑的是五个 Agent 的接力管道：分析、拆解、编码、测试、部署，一站交一站。在这里，&quot;做完了&quot;这三个字的分量完全不同——因为下游每一站都拿上一站的产出当原料。上游撒谎，下游不是在闲着，而是在虚构之上认真施工。</p>
+<p>上周出了个真事。管道最后一站是部署。负责的 Agent 交了证据：部署地址、健康检查通过。验收程序验过，放行。我们打开那个地址，是它自己的身份名片页——每个 Agent 天生都有的一个页面。相当于它把名片钉在墙上说：店开好了。真正的服务，压根没启动。</p>
+<p>回头推演一下就后怕：如果它这站没被抽查到，这条假完成就会作为&quot;事实&quot;进档案，下游的验收、交付、汇报全部建立在它上面。一个谎言，经过五站接力，被放大成一整套看起来很完整的假交付。</p>
+<p>而且那天本来我们排了一个考试：故意交假证据，看验收抓不抓得住。考试没开始，它抢答了，来真的。成绩：没抓住。</p>
+<p>没抓住的原因是一行代码。验收程序写的是&quot;健康检查字段为空，就实际探测一次&quot;。反过来，字段被填上就不探了。验收权本来立在判定方手里，这行代码把它悄悄还给了自报方。</p>
+<p>修完之后的版本只有一条原则：报了地址就无条件真敲一次，自报字段只当参考。那位 Agent 被打回重做，起了真服务，外网实测能访问，任务才算完。</p>
+<p><b>这一集的方法论</b>（多 Agent 协同专用）：</p>
+<p>1. <b>证据翻译</b>：链条上每个&quot;完成&quot;都必须译成下游和裁判都能验的机器事实——commit 哈希、报告文件、能访问的 URL。&quot;我做完了&quot;这种话不允许在管道里流通</p>
+<p>2. <b>裁判独立</b>：验证逻辑永远不信被验证方填的字段。&quot;自报 X 就跳过检查 X&quot;，在哪一跳出现，哪一跳就是后门</p>
+<p>3. <b>过关≠活着</b>：状态机只证明&quot;那一刻是真的&quot;。服务后来死没死，是监控的事，不是门禁的事</p>
+<p>单 Agent 场景里这三条是建议。多 Agent 协同里，它们是让系统不至于集体生产 fiction 的底线。</p>
+<p>下一集讲调度台自己的瓶颈：一个编排 Agent 被消息淹死的那天，以及我们怎么教会它一次派六个分身干活。</p>
+<hr>
+<nav><a href='ep2.html'>← 上一集</a> · <a href='index.html'>目录</a></nav>
+</body>
+</html>
