@@ -1,7 +1,7 @@
 # 54集 · 多 Agent 协同研究实战连载
 
 > 作者 jipin-ai（54集），集品智造 CTGC 创始人，北京。
-> 定位：可信编排基座（trustworthy orchestration substrate）——状态机 + 证据门禁 + 审计链 + 人类任意点介入。
+> 定位：多 Agent 协同（multi-agent collaboration）实战研究，可信方向——状态机 + 证据门禁（evidence gate）+ 审计链 + 人类任意点介入。
 > 差异化：LangGraph/CrewAI/AutoGen 都没有证据门禁与合规级审计；我们有生产实证（证据门禁当场抓获 Agent 假完成）。
 > 内容：六个 AI Agent 在真实生产环境协同工作的实战记录——五站接力管道（需求→拆解→编码→测试→部署），
 > 全部基于真实日志、真实故障、真实修复。不讲故事会，只写事故报告。
