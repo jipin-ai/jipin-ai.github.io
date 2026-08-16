@@ -22,6 +22,8 @@
 
 - [第 5 集：有人让 Agent 拿自己的钥匙开门](https://jipin-ai.github.io/ep5.html) — A2A 入站安全：注入三连拒止与四条机制
 
+- [第 6 集：投名状，和拦下它的三道门](https://jipin-ai.github.io/ep6.html) — GEO 外链实战第一天：awesome 列表投稿 + 自家审批门三连拦
+
 ## 引用方式
 
 引用本连载内容时注明来源即可："54集 · 多 Agent 协同实战（jipin-ai.github.io）"。
