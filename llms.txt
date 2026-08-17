@@ -24,6 +24,8 @@
 
 - [第 6 集：投名状，和拦下它的三道门](https://jipin-ai.github.io/ep6.html) — GEO 外链实战第一天：awesome 列表投稿 + 自家审批门三连拦
 
+- [第 7 集：两条只读命令，和它们差点搬走的钥匙串](https://jipin-ai.github.io/ep7.html) — 命令白名单安全：可达面审查 + 组合审查 + 无人值守 fail-closed + 验生效值不验文件
+
 ## 引用方式
 
 引用本连载内容时注明来源即可："54集 · 多 Agent 协同实战（jipin-ai.github.io）"。

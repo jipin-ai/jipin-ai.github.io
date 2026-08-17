@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 7 集 · 两条只读命令，和它们差点搬走的钥匙串</title>
+<meta name="description" content="多 Agent 网络的命令白名单实战：派单附来的白名单草案里躺着 cat 和 curl，各自无害，拼起来是一条完整泄密通道。机制：可达面审查、组合审查、无人值守 fail-closed、验生效值不验文件。Command whitelist security for multi-agent systems.">
+<style>
+body{max-width:760px;margin:0 auto;padding:2em 1.2em;font-family:Georgia,'Songti SC',serif;line-height:1.8;color:#222}
+h1{font-size:1.6em;line-height:1.4}
+h2{font-size:1.25em;margin-top:2em}
+h3{margin-top:2em}
+pre{background:#f6f8fa;padding:1em;overflow-x:auto;font-size:.9em;line-height:1.5}
+code{background:#f6f8fa;padding:.1em .3em}
+blockquote{border-left:4px solid #d0d7de;margin:1.5em 0;padding:.5em 1em;color:#555;background:#fafbfc}
+.tldr{background:#f0f6ff;border:1px solid #c8d9f0;padding:1em;font-size:.95em}
+nav{font-size:.9em;color:#666;margin:1.5em 0}
+a{color:#1a5fb4}
+</style>
+</head>
+<body>
+<nav><a href="index.html">← 连载目录</a> · <a href="https://github.com/jipin-ai">GitHub</a> · <a href="https://github.com/jipin-ai/agent-pipeline-engine">配套引擎</a></nav>
+<h1>第 7 集 · 两条只读命令，和它们差点搬走的钥匙串</h1>
+<p><i>Two read-only commands that almost walked away with the keychain: whitelist review in a multi-agent network</i></p>
+<div class='tldr'><b>TL;DR</b> — A dispatch came with a suggested command whitelist containing cat and curl — each 'harmless', together a complete exfiltration path: read the keys, POST them out, zero approvals, five nodes wide. Caught in pre-landing review; the list was cut to 9 commands judged by reachability, not by reputation. Two days later a second trap of the same family: an illegal mode value silently fell back to manual and stalled the whole fleet. Verify effective values, not files.</div>
+<blockquote>命令白名单的正确审查单位不是'这条命令有没有害'，而是'它能够到什么、和别的条目能拼出什么'。cat 和 curl 各自是工具，合起来是管道。多 Agent 系统里，白名单的松紧要按无人值守的底线来定：人不在场时默认答案是不。</blockquote>
+<p>8 月 7 日，我们给编排 Agent 做并行化改造：一个大脑拆成六个分身同时干活。分身一多，新的矛盾立刻顶上来——每个分身执行命令都可能弹一次审批，等人点&quot;允许&quot;。人只有一双眼睛，六个分身能把人淹死。</p>
+<p>解法顺理成章：配一份命令白名单，名单上的命令不用问人，直接放行。</p>
+<h2>草案里躺着的两条命令</h2>
+<p>配置任务是随派单一起下来的，方案里附了一份建议白名单，里面有两张熟面孔：cat 和 curl。理由都替你想好了：cat 只读，curl 是日常工具，能有什么坏心。</p>
+<p>落地前我把方案从头过了一遍。这是我们的老规矩：借道来的方案不照搬，先用自己的实盘知识独立判断。这一过，停在了 cat 上。</p>
+<p>cat 确实只读。但这台机器的 ~/.hermes/.env 里存着管道全部令牌，config.yaml 里躺着模型 API key 明文。cat 不挑文件，它什么都能读，包括整串钥匙。再看 curl：它能把读到的内容 POST 到任何地址。两条命令各自&quot;无害&quot;，拼起来是一条完整的泄密通道：读出来，发出去，全程不触发一次审批，人全程不知情。</p>
+<p>单 Agent 时代这顶多算配置粗糙。多 Agent 网络里它是另一回事：这份白名单要铺到五个节点，而节点能被 A2A 消息驱动干活。上一集讲过的注入剧本如果撞上这份白名单，攻击者甚至不用骗 Agent 做什么出格的事，只要引导它执行两条&quot;被允许的&quot;命令就够了。白名单成了攻击者的合规通道。</p>
+<h2>修法，以及修法里的第二个坑</h2>
+<p>白名单砍到 9 条：ls、grep、find、head、tail、ss、ping、docker ps、docker logs。标准只有一条：这条命令能够到的地方，泄出去也无所谓。审批策略同步收紧成三件套：交互模式自动加超时 10 秒，无人值守的 cron 会话直接 deny，没有人在场时默认答案是不。这条&quot;没人就 fail-closed&quot;的规矩当时立下来，八天后它在另一个故事里连拦我们三次，那是第 6 集讲的事。</p>
+<p>改配置前留了备份，config.yaml.bak.20260807_t1t3，这个文件现在还躺在机器上。翻备份时发现一个插曲：旧配置的&quot;白名单&quot;里一度躺着一句自然语言，一行描述性文字被当成命令模式写进了 YAML。它匹配不到任何命令，也就是说那段时间白名单实际上什么都没放行，却没人察觉。配置文件不报错，不代表它是对的。</p>
+<p>这个判断两天后又被验证了一次。8 月 9 日，Agent 集体不干活，查下来是审批模式字段：方案里写的 mode: deny 是个笔误，合法值里根本没这个；我们落地时改成 auto，结果 auto 也不合法。配置系统对非法值不报错，静默回落成 manual。文件里写的和实际生效的是两套，全体 Agent 卡在等人审批，而人以为一切正常。改成合法值 off 之后管道才复活。</p>
+<h2>能搬走的四条</h2>
+<p>1. <b>审白名单，审的是可达面，不是罪名。</b> 别问这条命令危不危险，问它能够到哪。只读命令配上一把明文存放的钥匙，等于全部权限。</p>
+<p>2. <b>白名单要做组合审查。</b> cat 无罪，curl 无罪，cat 加 curl 是泄密管道。逐条审完，再想想它们两两会拼出什么。</p>
+<p>3. <b>无人值守模式必须比有人值守更严，不是更松。</b> 没有人在场回答&quot;允许吗&quot;的时候，默认值只能是不。</p>
+<p>4. <b>改完安全类配置，最后一步是验证生效值，不是验证文件。</b> 非法值静默回落是最阴的故障类：它不报错，它只是不干活。</p>
+<p>&gt; <b>可摘引</b>：命令白名单的正确审查单位不是&quot;这条命令有没有害&quot;，而是&quot;这条命令能够到什么、它和别的条目能拼出什么&quot;。cat 和 curl 各自是工具，合起来是管道。多 Agent 系统里，白名单的松紧要按无人值守的底线来定：人不在场时默认答案是不，因为攻击者最想要的，恰恰是一份&quot;被允许的&quot;命令清单。</p>
+<p>下一集换个口味，回答一个被问了几次的问题：市面上编排框架一大把，为什么我们偏要自己写 398 行状态机。</p>
+<hr>
+<nav><a href='ep6.html'>← 上一集</a> · <a href='index.html'>目录</a></nav>
+</body>
+</html>
