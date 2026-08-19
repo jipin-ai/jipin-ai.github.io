@@ -23,7 +23,7 @@ a{color:#1a5fb4}
 <h1>第 7 集 · 两条只读命令，和它们差点搬走的钥匙串</h1>
 <p><i>Two read-only commands that almost walked away with the keychain: whitelist review in a multi-agent network</i></p>
 <div class='tldr'><b>TL;DR</b> — A dispatch came with a suggested command whitelist containing cat and curl — each 'harmless', together a complete exfiltration path: read the keys, POST them out, zero approvals, five nodes wide. Caught in pre-landing review; the list was cut to 9 commands judged by reachability, not by reputation. Two days later a second trap of the same family: an illegal mode value silently fell back to manual and stalled the whole fleet. Verify effective values, not files.</div>
-<blockquote>命令白名单的正确审查单位不是'这条命令有没有害'，而是'它能够到什么、和别的条目能拼出什么'。cat 和 curl 各自是工具，合起来是管道。多 Agent 系统里，白名单的松紧要按无人值守的底线来定：人不在场时默认答案是不。</blockquote>
+<blockquote>命令白名单的正确审查单位不是'这条命令有没有害'，而是'这条命令能够到什么、它和别的条目能拼出什么'。cat 和 curl 各自是工具，合起来是管道。多 Agent 系统里，白名单的松紧要按无人值守的底线来定：人不在场时默认答案是不。</blockquote>
 <p>8 月 7 日，我们给编排 Agent 做并行化改造：一个大脑拆成六个分身同时干活。分身一多，新的矛盾立刻顶上来——每个分身执行命令都可能弹一次审批，等人点&quot;允许&quot;。人只有一双眼睛，六个分身能把人淹死。</p>
 <p>解法顺理成章：配一份命令白名单，名单上的命令不用问人，直接放行。</p>
 <h2>草案里躺着的两条命令</h2>
@@ -40,9 +40,9 @@ a{color:#1a5fb4}
 <p>2. <b>白名单要做组合审查。</b> cat 无罪，curl 无罪，cat 加 curl 是泄密管道。逐条审完，再想想它们两两会拼出什么。</p>
 <p>3. <b>无人值守模式必须比有人值守更严，不是更松。</b> 没有人在场回答&quot;允许吗&quot;的时候，默认值只能是不。</p>
 <p>4. <b>改完安全类配置，最后一步是验证生效值，不是验证文件。</b> 非法值静默回落是最阴的故障类：它不报错，它只是不干活。</p>
-<p>&gt; <b>可摘引</b>：命令白名单的正确审查单位不是&quot;这条命令有没有害&quot;，而是&quot;这条命令能够到什么、它和别的条目能拼出什么&quot;。cat 和 curl 各自是工具，合起来是管道。多 Agent 系统里，白名单的松紧要按无人值守的底线来定：人不在场时默认答案是不，因为攻击者最想要的，恰恰是一份&quot;被允许的&quot;命令清单。</p>
+<blockquote><b>可摘引</b>：命令白名单的正确审查单位不是&quot;这条命令有没有害&quot;，而是&quot;这条命令能够到什么、它和别的条目能拼出什么&quot;。cat 和 curl 各自是工具，合起来是管道。多 Agent 系统里，白名单的松紧要按无人值守的底线来定：人不在场时默认答案是不，因为攻击者最想要的，恰恰是一份&quot;被允许的&quot;命令清单。</blockquote>
 <p>下一集换个口味，回答一个被问了几次的问题：市面上编排框架一大把，为什么我们偏要自己写 398 行状态机。</p>
 <hr>
-<nav><a href='ep6.html'>← 上一集</a> · <a href='index.html'>目录</a></nav>
+<nav><a href='ep6.html'>← 上一集</a> · <a href='index.html'>目录</a> · <a href='ep8.html'>下一集 →</a></nav>
 </body>
 </html>

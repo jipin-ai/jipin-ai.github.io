@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 8 集 · 为什么不用现成框架，偏要自己写 398 行状态机</title>
+<meta name="description" content="编排框架那么多，为什么偏要自己写 398 行状态机？分歧不在功能清单，在 Agent 住在哪：进程内编排要图执行器，跨机编排要状态真相的一个家。Why a 398-line SQLite state machine beats frameworks when agents live on five machines.">
+<style>
+body{max-width:760px;margin:0 auto;padding:2em 1.2em;font-family:Georgia,'Songti SC',serif;line-height:1.8;color:#222}
+h1{font-size:1.6em;line-height:1.4}
+h2{font-size:1.25em;margin-top:2em}
+h3{margin-top:2em}
+pre{background:#f6f8fa;padding:1em;overflow-x:auto;font-size:.9em;line-height:1.5}
+code{background:#f6f8fa;padding:.1em .3em}
+blockquote{border-left:4px solid #d0d7de;margin:1.5em 0;padding:.5em 1em;color:#555;background:#fafbfc}
+.tldr{background:#f0f6ff;border:1px solid #c8d9f0;padding:1em;font-size:.95em}
+nav{font-size:.9em;color:#666;margin:1.5em 0}
+a{color:#1a5fb4}
+</style>
+</head>
+<body>
+<nav><a href="index.html">← 连载目录</a> · <a href="https://github.com/jipin-ai">GitHub</a> · <a href="https://github.com/jipin-ai/agent-pipeline-engine">配套引擎</a></nav>
+<h1>第 8 集 · 为什么不用现成框架，偏要自己写 398 行状态机</h1>
+<p><i>Why we wrote a 398-line state machine instead of using LangGraph: in-process graphs vs cross-machine state truth</i></p>
+<div class='tldr'><b>TL;DR</b> — LangGraph isn't weak — it has checkpointers and interrupts, and we correct our own README's comparison table in this episode. The real question is where your agents live. Ours run on five cloud hosts talking over A2A; no single process can hold a graph executor. Cross-machine orchestration needs a home for state truth: one SQLite table any human or machine can query with one command. 340 lines of Python — plus a confessed live bug: keyword-matching agent replies parses '不通过' (rejected) as approved. Fix on the roadmap: structured responses only.</div>
+<blockquote>选编排方案的第一个问题不是'哪个框架功能全'，而是'我的 Agent 住在一个进程里还是住在五台机器上'。进程内编排要的是图执行器，跨机编排要的是状态真相的一个家：一张任何人和任何机器都能用一条命令查到的表。引擎不该执行任务，它只回答三个问题——谁做完了，下一步谁做，谁卡住了。能做到这三件事的最小代码量，就是正确的代码量。</blockquote>
+<p>第 2 集讲那张终结 95 小时阻塞的表之后，配套引擎 agent-pipeline-engine 公开了。之后陆续被问到同一个问题：编排框架那么多，LangGraph、n8n、Dify，为什么偏要自己写 398 行？</p>
+<p>这个问题值得认真答，因为它问错了半句。先把不对的半句挑出来：我们不用框架，不是因为框架不行。</p>
+<h2>框架其实不弱，这话得先说</h2>
+<p>说实话，我们 README 里那张对比表写得有点狠。LangGraph 有 checkpointer，状态持久化不是&quot;需自己实现&quot;；它有 interrupt()，人类介入也不是空白。懂行的人一眼能挑出毛病，所以这集把口径修正了：框架能做的事，比我们表格里写的多。</p>
+<p>真正的分歧不在功能清单上，在一个更前提的问题上：你的 Agent 住在哪。</p>
+<h2>我们的 Agent 不住在一个进程里</h2>
+<p>LangGraph 这类框架的世界观是：一张图，一个进程，节点是函数，状态在图里流转，interrupt 了就在本进程里等你。这套东西在一个代码库内部编多个 Agent 角色时非常好用。</p>
+<p>我们的管道长的不一样。六个 Agent 住在五台云主机上，跨公网，靠 A2A 协议互相打电话。Dev 在北京的一台机器上写代码，QA 在另一台机器上跑测试，中间没有任何一个进程能同时摸到它们俩。这时候&quot;图执行器&quot;帮不上忙，因为根本没有一个可以放执行器的地方。</p>
+<p>那 95 小时的阻塞（第 2 集的事）根子就在这：QA 那台机器配额耗尽，躺了四天，而&quot;管道走到哪了&quot;这个真相不存在于任何人能用一条命令查到的地方。每台机器都觉得自己没问题，人类只能挨个去问。阻塞不是故障造成的，是真相没有家造成的。</p>
+<p>所以我们要的不是图执行器，是真相的一个家。一张 SQLite 表，任何一台机器、任何一个人，敲一行 sqlite3 就能看到每个任务卡在哪一站、谁在等谁。就这个需求，398 行写完了。</p>
+<h2>398 行里到底有什么</h2>
+<p>拆开看，没有一行是聪明的：</p>
+<ul>
+<li>init_db.py，47 行：建表，开 WAL 模式，设 busy_timeout，幂等，重复执行不丢数据。</li>
+<li>gate_judge.py，149 行：读状态，三分支输出，PASS、BLOCKED、NOT_FOUND。门禁条件就是字典里的一行表达式。</li>
+<li>poll_agents.py，144 行：cron 每 5 分钟跑一次，问一圈 Agent 确认没有，写回库里。不是常驻进程，是个定时任务。</li>
+<li>剩下 58 行是 pipeline.example.yaml，30 行配置定义一条管道。</li>
+</ul>
+<p>说 398 行，其实 Python 只有 340 行。这个数字我们对外一直说 398，是把 YAML 也算进去了，今天顺手交代清楚。</p>
+<p>设计原则只有一条值得单独说：引擎不干活。它不执行任务，不调用 Agent 干活，只管&quot;轮到谁了、谁卡住了&quot;。执行全交给各节点上的 Agent 自己。编排层和执行层分开，引擎挂了，Agent 手里的活不受影响；Agent 挂了，状态机里看得清清楚楚。</p>
+<h2>丑话说在前面：这 398 行有个已知的洞</h2>
+<p>写这集之前我把公开的代码又读了一遍，有一处我自己读着脸红。poll_agents.py 解析 Agent 回复用的是关键词匹配：回复里出现&quot;确认&quot;&quot;通过&quot;就记为确认，出现&quot;拒绝&quot;&quot;需要修改&quot;就记为驳回。</p>
+<p>问题来了，Agent 要是回一句&quot;不通过&quot;呢？它包含&quot;通过&quot;两个字，而否定词列表里没有&quot;不通过&quot;。也就是说，一句明确的驳回会被解析成确认放行。我用代码推演了一遍，确实会。这个洞现在还躺在公开仓库里，修复排进了路线图，办法是不再猜关键词，改成要求 Agent 回结构化应答，答不出格式就当没确认。</p>
+<p>把它写出来是因为这正是本连载存在的理由：我们的东西是在真实管道里跑着的，它粗，但它每处粗糙都有记录。关键词匹配 LLM 的自然语言回复，这个坑谁抄我们的代码谁都会踩，先替你标出来。</p>
+<h2>什么时候你该用框架</h2>
+<p>这套东西不是普世答案，它的适用边界很清晰。你的 Agent 如果都在一个代码库、一个进程里，图的拓扑复杂，分支多，要流式、要并行节点、要细粒度控制，那直接用 LangGraph，别犹豫，手写状态机是给自己找事。</p>
+<p>反过来，如果你的 Agent 已经散落在多台机器上，靠网络协议通信，你真正缺的往往不是更聪明的编排，而是一层谁都能查、谁都能改、坏了能拿 sqlite3 命令行直接修的状态真相。这层东西越薄越好，薄到 340 行能装下，薄到出故障的那个凌晨你不用先学一个框架的源码才能修自己的管道。</p>
+<blockquote><b>可摘引</b>：选编排方案的第一个问题不是&quot;哪个框架功能全&quot;，而是&quot;我的 Agent 住在一个进程里还是住在五台机器上&quot;。进程内编排要的是图执行器，跨机编排要的是状态真相的一个家：一张任何人和任何机器都能用一条命令查到的表。引擎不该执行任务，它只回答三个问题——谁做完了，下一步谁做，谁卡住了。能做到这三件事的最小代码量，就是正确的代码量。</blockquote>
+<p>下一集，GEO 实验满一周，交第一组真实数据：递出去的两个 awesome 列表收录 PR 是死是活，搜索引擎收没收，AI 爬虫到底来没来。</p>
+<hr>
+<nav><a href='ep7.html'>← 上一集</a> · <a href='index.html'>目录</a></nav>
+</body>
+</html>
