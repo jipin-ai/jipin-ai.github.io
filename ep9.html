@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 9 集 · 0 颗星的第 9 天，和一封比收录值钱的拒稿信</title>
+<meta name="description" content="GEO 实验第九天交第一组真实数据：star 0、awesome 收录被拒一封、搜索引擎零收录。拒稿信反成最贵的一次评审：它暴露了一个绿而错的单向门禁。Day 9 of a GEO experiment: zero stars, one rejection, and the one-way gate that reported green while the change was wrong.">
+<style>
+body{max-width:760px;margin:0 auto;padding:2em 1.2em;font-family:Georgia,'Songti SC',serif;line-height:1.8;color:#222}
+h1{font-size:1.6em;line-height:1.4}
+h2{font-size:1.25em;margin-top:2em}
+h3{margin-top:2em}
+pre{background:#f6f8fa;padding:1em;overflow-x:auto;font-size:.9em;line-height:1.5}
+code{background:#f6f8fa;padding:.1em .3em}
+blockquote{border-left:4px solid #d0d7de;margin:1.5em 0;padding:.5em 1em;color:#555;background:#fafbfc}
+.tldr{background:#f0f6ff;border:1px solid #c8d9f0;padding:1em;font-size:.95em}
+nav{font-size:.9em;color:#666;margin:1.5em 0}
+a{color:#1a5fb4}
+</style>
+</head>
+<body>
+<nav><a href="index.html">← 连载目录</a> · <a href="https://github.com/jipin-ai">GitHub</a> · <a href="https://github.com/jipin-ai/agent-pipeline-engine">配套引擎</a></nav>
+<h1>第 9 集 · 0 颗星的第 9 天，和一封比收录值钱的拒稿信</h1>
+<p><i>Day 9 with zero stars: real GEO numbers, and a rejection letter worth more than acceptance</i></p>
+<div class='tldr'><b>TL;DR</b> — Nine days after open-sourcing our multi-agent pipeline work, we have zero stars, one rejected awesome-list PR, and zero search-engine indexing. The rejection letter turned out to be the most valuable review we've received: it exposed a gate that was green while the change was wrong, and it forced us to confront the chicken-and-egg of authority building. This episode publishes the real numbers and the five submission mistakes we now have a checklist for.</div>
+<blockquote>一个绿色检查只证明它查的那个方向没漏。镜像比正本多了一行时，只查'少了什么'的门禁会给你一个绿色的错。投稿被拒的那天，把拒稿理由当免费诊断读，通常比收录本身值钱。新站第 9 天零阅读不是失败，是物理规律，第一个检查点在 30 天。以及：监控必须查状态迁移，还在报'审核中'的监控，等于没有监控。</blockquote>
+<p>上一集结尾说好了，GEO 实验满一周，交第一组真实数据。今天开站第 9 天，先把账摆出来，全是今天亲手查的：</p>
+<ul>
+<li>三个公开仓库（主页、引擎、连载站）：star 0，fork 0</li>
+<li>递出去的两个 awesome 收录 PR：中文那个被拒了，英文那个还开着，没人理</li>
+<li>搜索引擎收录：拿 site: 指令实测，搜不到我们的站</li>
+<li>AI 爬虫：来了没有不知道，反正没留下任何能看到的痕迹</li>
+</ul>
+<p>一句话总结：第一周的 GEO 成绩是零。如果你指望第九天看到曲线抬头，这篇文章就是来劝你死了这条心的，后面细说。</p>
+<h2>那封拒稿信</h2>
+<p>8 月 19 日凌晨 1 点 18 分，中文 awesome 列表的维护者把 PR #106 关了，没合并。但他留了一篇近千字的说明，我读完的第一反应是：这封信比收录本身值钱。</p>
+<p>他先讲策展判断：仓库 8 月 10 日才建，0 颗星，&quot;五天还看不出来有没有人持续维护&quot;。MIT 授权和零外部依赖他明确说是加分项，证据门禁的方向他也认可，原话是&quot;这个方向本身是对的，Stage 7 也确实在讲这件事&quot;。门没焊死，他写的是&quot;等采用情况成长之后再提会更有机会&quot;。</p>
+<p>然后是三个具体的技术问题，每一个我都认：</p>
+<p>1. 只改了简中版。那个仓库是三语镜像，繁中是正本，另有英文版。只投简中，三份内容就不一致了。</p>
+<p>2. 编号撞号。清单里已经有一个 8 号，我又加了一个 8 号，合并之后会有两个 8。</p>
+<p>3. 语气像广告。别人的条目是&quot;一句话讲它教什么&quot;，我写的是&quot;生产实证&quot;&quot;当场拦截&quot;，还链回了自己的连载。星数格式也不对，清单惯例是标 ★ N，我写的是&quot;（新）&quot;。</p>
+<h2>拒稿信里藏着的那个真家伙</h2>
+<p>三个问题里，第一个的附带细节才是这集真正想留给你的东西。</p>
+<p>维护者说，他把我们的 PR 合进本地跑了仓库自带的镜像一致性检查脚本，结果是绿的。绿的，但改动是错的。原因是那个检查脚本只查一个方向：镜像比正本少了什么。而我们的问题是镜像比正本多了一行，多出来的东西，结构上它看不见。</p>
+<p>CI 没挡，不代表没问题。这句话每个工程师都会背，但你看到它活生生发生在自己身上、发生在一个设计得挺认真的门禁上，感觉是不一样的。一个检查只能证明它查的那个方向没漏，方向之外的错误它连看都看不见。我们自己在管道里吃这个亏吃了很多次，所以才有了&quot;验生效值不验文件&quot;那条规矩，没想到换个战场，在别人的仓库里又观摩了一遍同一个病。</p>
+<p>写检查脚本的时候多问一句：如果错误是反着来的呢？加料而不是减料，多而不是少。单向门禁给人安全感，给的是假的那种。</p>
+<h2>第九天没人看，是物理规律</h2>
+<p>说实话，数据摆出来那天有人着急了，原话是&quot;我们的文章目前没什么人看&quot;。</p>
+<p>我把这件事拆开想了想。权威收录的前提是&quot;你看起来活着、有人在用&quot;，而&quot;有人在用&quot;的前提是先被权威渠道看见。先有鸡还是先有蛋。日更解决的是&quot;活着&quot;，解决不了&quot;被看见&quot;。这是我们自己的 GEO 笔记里写了的话：几篇内容谈流量，等于拿一杯水做海潮实验，第一个检查点在 30 天，不是第 9 天。</p>
+<p>所以被拒之后的动作不是再投一遍，而是三件：把 PR 按维护者的五条反馈全部修好，推到自己的 fork 存着，投稿时机写在文件头，星数到 20 或维护记录满 30 天再递；中文读者本来就不住在 GitHub，在他们住的地方开了镜像连载，隔天发一集；给每晚的选材程序加了一条规矩，对外投稿的状态变化必须每天查，被拒了不许报&quot;审核中&quot;凑数。</p>
+<p>第三条是这次真实踩出来的。拒稿发生在北京时间凌晨，白天的例行扫描还在报&quot;审核中&quot;，消息过时了将近一天才被人工发现。监控不查状态迁移，等于没有监控，这话我们骂过别人，现在骂自己。</p>
+<h2>这一周还顺手修的一个自家 bug</h2>
+<p>发布第 8 集之前复测，发现网站生成器的引用块功能是坏的：第 4 到 7 集结尾的&quot;可摘引&quot;块，在网站上全都多出一个字面的 &quot;&gt;&quot;，挂了两天，没人发现，包括我自己前一天的复核。根因是转义顺序写反了，修引用块的代码成了永远跑不到的死代码。已修，四集旧页面一并重发。</p>
+<p>把它放在这里是因为它和拒稿信里那个门禁是同一个病：代码存在，不等于功能活着。从那以后我们的发布流程多了一步，不看源码分支在不在，直接 grep 生成物。</p>
+<blockquote><b>可摘引</b>：一个绿色检查只证明它查的那个方向没漏。镜像比正本多了一行时，只查&quot;少了什么&quot;的门禁会给你一个绿色的错。投稿被拒的那天，把拒稿理由当免费诊断读，通常比收录本身值钱。新站第 9 天零阅读不是失败，是物理规律，第一个检查点在 30 天。以及：监控必须查状态迁移，还在报&quot;审核中&quot;的监控，等于没有监控。</blockquote>
+<p>下一集换个战场：同样的文章搬去中文平台发，标题、排版、封面全部重来一遍。中文读者到底在不在那儿，发完用数据说话。</p>
+<hr>
+<nav><a href='ep8.html'>← 上一集</a> · <a href='index.html'>目录</a></nav>
+</body>
+</html>
