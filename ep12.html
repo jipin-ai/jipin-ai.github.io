@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 12 集 · 验收全绿的那个系统，在现网根本跑不起来</title>
+<meta name="description" content="跨双仓依赖切换的断链实录：监控侧切了新接口，上游端点从未上线，验收却全绿——因为验收对面站的是自己搭的模拟调度器。Cross-repo dependency switch broken-chain postmortem.">
+<style>
+body{max-width:760px;margin:0 auto;padding:2em 1.2em;font-family:Georgia,'Songti SC',serif;line-height:1.8;color:#222}
+h1{font-size:1.6em;line-height:1.4}
+h2{font-size:1.25em;margin-top:2em}
+h3{margin-top:2em}
+pre{background:#f6f8fa;padding:1em;overflow-x:auto;font-size:.9em;line-height:1.5}
+code{background:#f6f8fa;padding:.1em .3em}
+blockquote{border-left:4px solid #d0d7de;margin:1.5em 0;padding:.5em 1em;color:#555;background:#fafbfc}
+.tldr{background:#f0f6ff;border:1px solid #c8d9f0;padding:1em;font-size:.95em}
+nav{font-size:.9em;color:#666;margin:1.5em 0}
+a{color:#1a5fb4}
+</style>
+</head>
+<body>
+<nav><a href="index.html">← 连载目录</a> · <a href="https://github.com/jipin-ai">GitHub</a> · <a href="https://github.com/jipin-ai/agent-pipeline-engine">配套引擎</a></nav>
+<h1>第 12 集 · 验收全绿的那个系统，在现网根本跑不起来</h1>
+<p><i>Green acceptance, dead production: the six-day broken chain between two repos</i></p>
+<div class='tldr'><b>TL;DR</b> — A cross-repo change passed acceptance with a local mock upstream. Six days later we found the production upstream never had the endpoint: the monitor had switched to a lock the other side never installed. The rule now: any change spanning two repos must verify against the live other side — a local mock opponent doesn't count.</div>
+<blockquote>双仓依赖切换，两侧同验——本地模拟自证不算数，自己搭的对手不算对手。静默降级和撒谎是同义词。</blockquote>
+<h1>验收全绿的那个系统，在现网根本跑不起来</h1>
+<blockquote>已完结 · 独立可读 · 约 7 分钟</blockquote>
+<blockquote>受众：正在跨两个仓库/服务做依赖切换、验收却只跑本地模拟的工程师</blockquote>
+<p>---</p>
+<p>先说一个刚发生的、还热乎的事。</p>
+<p>8 月 23 号，我们给监控面做了一次改造，名字叫&quot;规则下沉&quot;：原来门禁规则硬编码在监控代码里，改完后规则的唯一事实源应该是调度器的一个新接口 `/api/config`。监控不再自己存规则，每次去问调度器要。</p>
+<p>改造做完，测试全过，验收全绿，开发笔记里写着&quot;本地端到端冒烟全过&quot;。交付，归档，下一单。</p>
+<p>8 月 29 号，另一个任务要动监控前端，开工前按惯例对现网做了一次实测。结果：</p>
+<ul>
+<li>调度器的接口清单里，根本没有 `/api/config` 这个路径。两种令牌都试了，404。</li>
+<li>现网监控后端跑的还是改造前的旧版。</li>
+<li>仓库里的最新代码，对着现网调度器跑，四个核心接口全部 500。</li>
+</ul>
+<p>翻译成人话：那次&quot;验收全绿&quot;的改造，它的上游部分从来没有上线过。断链安安静静活了六天，半个迭代周期，没有任何报警，因为没有任何东西在探测它。</p>
+<h2>链是怎么断的</h2>
+<p>断法很教科书，值得拆开看。</p>
+<p>这次改造横跨两个仓库：监控仓改了，改成&quot;依赖调度器的新接口&quot;；调度器仓没改——准确说，监控仓里有一份调度器代码的副本，副本里加了新接口，但真正的调度器源码在另一个仓库，部署在另一台云主机上，开发节点连写权限都没有。</p>
+<p>于是链条断成了一个精确的形状：监控侧已经切换了依赖，上游侧那个端点从未存在。一侧换了新锁，另一侧还是旧门。</p>
+<p>那为什么验收是绿的？因为验收的时候，监控对面站的不是真调度器，是一个本地临时搭的模拟调度器。模拟的那个当然有 `/api/config`——是我们自己刚写进去的。自己搭的对手，自己当然打得赢。</p>
+<h2>一条六天后才补上、以后永远在的规矩</h2>
+<p>断链被活捉之后，第一件事不是修，是立规矩。这次落的规矩只有一条，但它是强制性的：</p>
+<p>凡是一次改动横跨两个仓库（或两个服务），验收标准里必须包含&quot;对现网的另一侧实测&quot;，本地模拟自证一律不算数。</p>
+<p>注意，这条规矩防的不是&quot;忘了部署&quot;。忘部署谁都会。它防的是一个更隐蔽的东西：验收环境悄悄地不等于生产环境。本地冒烟和现网对拍之间隔着一堵墙，墙上的每块砖都有一个正当名字：图省事、赶进度、&quot;反正逻辑一样&quot;。这次六天才发现，算是运气好——下次可能是六十天。</p>
+<h2>断链之上，怎么把活干完</h2>
+<p>坑被活捉当天，手上还有一个监控前端任务要交付。上游端点上不了线（那台机器不归我们写），断链短期修不好，但任务不能停。</p>
+<p>处置方案叫 config-first + FALLBACK：</p>
+<p>1. 监控优先去取调度器的规则源；</p>
+<p>2. 取不到，就降级到一份内置镜像——这份镜像用注释块在代码里圈定，有专门的守护测试圈住它，禁止它自己悄悄演化；</p>
+<p>3. 最关键一笔：页面右上角实时标注当前规则源是哪个。&quot;规则源：调度器 /api/config&quot;或&quot;规则源：内置降级&quot;，就摆在那，谁看谁明白。</p>
+<p>上游端点哪天上线了，前端自动切回去，零代码改动。</p>
+<p>这套东西 8 月 29 号走完整五棒门禁交付了：需求、拆解、编码（56 个测试全过）、测试、部署，一棒不少。</p>
+<h2>写作这天的现网实况</h2>
+<p>这篇文章的每个&quot;现网数字&quot;，都是 8 月 30 号上午真实探测的，不是回忆：</p>
+<ul>
+<li>监控站（`http://8.219.137.176:8882`）在线，`/api/agents` 和 `/api/overview` 返回的都是真实数据，不是 mock；</li>
+<li>后端仍是旧版，`/api/config` 依旧 404——那条降级路径，正在生产环境上真实地工作着，不是设计图，是实况；</li>
+<li>上游调度器（:8800）这趟探测时<b>没起来</b>，`/health`、`/api/config` 全端口 502——断链不但没修，调度器本体也还没回到监听状态；</li>
+<li>五只 Agent 全部在线、心跳新鲜（BA/DEV/ORC/QA/DEMO 都在，探测前 27 秒刚跳过）。</li>
+</ul>
+<p>这个画面我们其实挺满意：断链还在，但记分牌没有装没看见。它把&quot;我现在的数据是从降级镜像来的&quot;标在页面上。监控的第一美德不是永远正确，是永远坦白——会撒谎的监控比没有监控危险十倍：没有监控你知道自己瞎，撒谎的监控让你以为自己看得见。</p>
+<h2>这集拿断链换的，三条</h2>
+<p>1. <b>双仓依赖切换，两侧同验。</b> A 改成依赖 B 的新接口时，验收必须含&quot;对现网 B 实测该接口 200&quot;。本地模拟自证不算数，自己搭的对手不算对手。</p>
+<p>2. <b>降级路径要显式，且要自首。</b> 降级可以有，但必须圈定（注释块 + 守护测试），并且把&quot;我降级了&quot;标在用户看得见的地方。静默降级和撒谎是同义词。</p>
+<p>3. <b>守护测试该改就改，但改要改得诚实。</b> 旧契约测试在新需求下必然失败，更新契约时把&quot;为什么改&quot;写进注释和开发笔记，不许静默放宽。</p>
+<hr>
+<nav><a href='ep11.html'>← 上一集</a> · <a href='index.html'>目录</a></nav>
+</body>
+</html>

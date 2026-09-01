@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 11 集 · 记分牌不能问运动员要比分：只读监控的三次死亡与重生</title>
+<meta name="description" content="给多 Agent 管道做只读监控的实战：SQLite WAL 跨机盲区、同一库两本时钟（UTC+北京）、mock 数据清零、八页砍三页。Read-only monitoring for agent pipelines.">
+<style>
+body{max-width:760px;margin:0 auto;padding:2em 1.2em;font-family:Georgia,'Songti SC',serif;line-height:1.8;color:#222}
+h1{font-size:1.6em;line-height:1.4}
+h2{font-size:1.25em;margin-top:2em}
+h3{margin-top:2em}
+pre{background:#f6f8fa;padding:1em;overflow-x:auto;font-size:.9em;line-height:1.5}
+code{background:#f6f8fa;padding:.1em .3em}
+blockquote{border-left:4px solid #d0d7de;margin:1.5em 0;padding:.5em 1em;color:#555;background:#fafbfc}
+.tldr{background:#f0f6ff;border:1px solid #c8d9f0;padding:1em;font-size:.95em}
+nav{font-size:.9em;color:#666;margin:1.5em 0}
+a{color:#1a5fb4}
+</style>
+</head>
+<body>
+<nav><a href="index.html">← 连载目录</a> · <a href="https://github.com/jipin-ai">GitHub</a> · <a href="https://github.com/jipin-ai/agent-pipeline-engine">配套引擎</a></nav>
+<h1>第 11 集 · 记分牌不能问运动员要比分：只读监控的三次死亡与重生</h1>
+<p><i>Building a read-only scoreboard for a multi-agent pipeline: WAL blindness, two clocks in one database, and the mock-data purge</i></p>
+<div class='tldr'><b>TL;DR</b> — Our pipeline monitor died three deaths: v1 read SQLite directly and was blind to WAL-buffered writes across machines; then we found two clocks living in one database (UTC defaults vs Beijing-time writes); then we purged every mock pixel, including fake refresh jitter that made the system look busy. The scoreboard's best feature: it labels, live, which data source it is currently trusting.</div>
+<blockquote>监控的第一美德不是永远正确，是永远坦白——会撒谎的监控比没有监控危险十倍：没有监控你知道自己瞎，撒谎的监控让你以为自己看得见。</blockquote>
+<h1>记分牌不能问运动员要比分</h1>
+<blockquote>已完结 · 独立可读 · 约 7 分钟</blockquote>
+<blockquote>受众：想给分布式管道做一块只读监控、又不想让它变成第二条指挥链的工程师</blockquote>
+<p>---</p>
+<p>我们的管道是五只 Agent 在五朵云上接力：BA 写需求、ORC 拆解、DEV 写码、QA 测试、DEMO 部署。一棒传一棒，每棒交证据，证据不齐不放行。这套机制前九集讲了很多，但有个问题一直没正面说过：赛跑的时候，记分牌在哪？</p>
+<p>任务卡在哪一站、哪只 Agent 心跳断了、今天几条告警——这些全躺在调度器的 SQLite 库里。我想看一眼进度，得登服务器、开数据库、手写 SQL。五朵云、五个节点、每天几十次状态流转，靠人肉查询去监控一支自动化的队伍，这事本身就挺荒诞。</p>
+<p>所以有了 ape monitor——一块只读记分牌。今天它长这样：三个页面（主流程状态 / Agent 节点 / 运行日志）、十个后端端点、五秒一次真实轮询，部署在 DEMO-01 的 8882 端口，前后端一共一千九百行。</p>
+<p>但这块记分牌不是一次就成的。它死过一次、被骗过一次、瘦过一次身。这集把三次全讲一遍。</p>
+<h2>第一版：出生就瞎了</h2>
+<p>v1 的方案很直觉：调度器的数据在 SQLite 里，那就读 SQLite。</p>
+<p>上线即翻车，两个死因都是物理层面的硬伤。第一，SQLite 开了 WAL 模式，没 checkpoint 的数据躺在 `-wal` 文件里，跨机器根本读不到——监控部署在另一台机器上，看到的永远是不完整的旧数据。第二，心跳滞后十二个半小时。监控说&quot;这只 Agent 半天没气了&quot;，人家其实活得好好的，只是你看不见。</p>
+<p>教训一句：监控不能贴着被监控者的存储层读数据。你觉得读数据库最直接，实际你读到的是存储引擎的视角，不是业务的视角。WAL 缓冲、时基、写入语义，每一层都是坑。</p>
+<h2>v2 推倒重来，四条铁律写死</h2>
+<p>1. 只调调度器的只读 HTTP API，绝不直读数据库（读库代码整文件删除）。</p>
+<p>2. 绝不写任务数据——监控面没有任何写权限。</p>
+<p>3. 独立进程，不塞进调度器里。</p>
+<p>4. HTTP 客户端只用标准库，零新增依赖（部署机不能随便 pip install）。</p>
+<p>第二条值得多说。只读不是&quot;我们自觉不写&quot;，是架构上根本没有写的路径。监控面要是能写，它就成了第二条指挥链——记分牌能动手改比分，整个证据体系就废了。</p>
+<h2>一个库里住着两本钟</h2>
+<p>走 HTTP API 之后，碰到更阴的东西：同一个数据库里有两本时钟。</p>
+<p>实测表结构发现：建表时列默认值固化的是 UTC（`created_at` 这些），但运行时内联 SQL 写进去的是北京时间（`status_changed_at`、心跳等七个字段）。同一行数据，这列是 UTC，那列是北京时间，差八个小时。</p>
+<p>监控要算&quot;任务耗时&quot;&quot;心跳龄期&quot;，全是跨字段做减法。不做字段级时基归一，每个耗时都差八小时——而且不是报错，是安安静静地错。最后落了一个 57 行的 `tzutil.py`：一张字段-时基映射表，解析按各自时基，做差先归一。代码量小到不好意思，但没有它，记分牌上每个数字都可能是假的。</p>
+<p>时间字段不要相信&quot;系统时间&quot;这种笼统说法，逐个字段问它是什么钟。</p>
+<h2>假数据比没数据害人</h2>
+<p>前端看板第一版是从零画的，画的时候后端还没好，于是填了 mock 数据。后端接真之后，我们做了一次&quot;假数据清零&quot;，删掉的东西值得列出来：</p>
+<ul>
+<li>节点页五条假心跳曲线（sparkline，纯装饰，换心跳实况）</li>
+<li>队列页一条假趋势折线（Math.random 生成的，换真实状态分布）</li>
+<li>告警页一套假的 P0-P3 分级（后端根本没这字段，换四个真实统计口径）</li>
+<li>五秒一次的&quot;假刷新&quot;——数字随机跳动，显得系统很忙</li>
+</ul>
+<p>最后一类最恶劣。随机跳动的数字给人&quot;系统活着&quot;的错觉，而它恰恰是系统死没死最该说真话的地方。假数据不是占位符，是谎言的彩排。看板上每个像素都要能回答&quot;你的数据源是哪个端点&quot;，答不上来的就删。</p>
+<p>顺手说个工程细节：图表库本地化（ECharts 1,024,740 字节落在仓库里），整个页面零外网引用，有测试专门扫 `script`/`link` 标签守护这条。监控面挂在公网，你自己就是基础设施，不能靠别人的基础设施活着。</p>
+<h2>记分牌要坦白自己信的是谁</h2>
+<p>这块记分牌现在最得意的设计，一句话：它在页面右上角，实时标注自己当前读的是哪个数据源。</p>
+<p>规则源来自调度器的 `/api/config` 端点。为了不把规则写死在监控里，监控每次去问调度器要；取不到，就降级到一份内置镜像（注释块圈定、守护测试圈住、禁止独立演化）。然后页面上就摆一行字：&quot;规则源：调度器 /api/config&quot;，或者&quot;规则源：内置降级&quot;。</p>
+<p>为什么得意这一笔？因为监控的第一美德不是&quot;永远正确&quot;，是永远坦白。会撒谎的监控，比没有监控危险十倍：没有监控你知道自己瞎，撒谎的监控让你以为自己看得见。把&quot;我现在的数据从哪来&quot;标在页面上，等于记分牌自己挂了一句免责声明，谁看谁知道当天该信到什么程度。</p>
+<h2>瘦身：从八个页面到三个</h2>
+<p>最初看板有八个页面：仪表盘、管道、队列、门禁、告警、状态机……听着就全。8 月 29 号一刀砍到三个：状态监控、Agent 节点、运行日志。</p>
+<p>砍的逻辑很朴素：人类中枢每天真正看的就是三件事——任务走到哪了、谁还活着、出了什么事。其他五个页面不是没价值，是价值不够日常，放那儿只会稀释注意力。监控面不是功能展示橱窗，是仪表盘，仪表盘的第一职责是让异常一眼跳出来。</p>
+<p>顺手固化了一条视觉规矩：ALERT 行标红，色值写死（暗色主题下 `rgba(217,48,37,0.22)` 行底 + 3px 红条），写进验收标准，不许&quot;差不多红&quot;。八砍三不是退步，是把&quot;看起来功能全&quot;换成了&quot;每天真用&quot;。</p>
+<h2>这块记分牌自己，也走了五棒门禁</h2>
+<p>讲了半天监控怎么盯着管道，反过来一件事更说明问题：这块记分牌自己，也是走五棒门禁造出来的。</p>
+<p>需求签署、拆解五问、编码交 commit + 测试报告 + 制品哈希、测试交覆盖率报告、部署交 URL + 活检——一棒不少。最近一次改版成绩单：56 个测试全过、覆盖率 100%、制品 sha256 上传后回读一致、DEMO 站活检通过。监控面自己先过了证据门禁，才有资格去盯别人的证据。</p>
+<p>这不是洁癖。你自己都不交证据的监控系统，凭什么拦别人的假完成？</p>
+<p>现在就能看：`http://8.219.137.176:8882`（DEMO-01，五秒一刷，右上角标注当前规则源）</p>
+<hr>
+<nav><a href='ep10.html'>← 上一集</a> · <a href='index.html'>目录</a> · <a href='ep12.html'>下一集 →</a></nav>
+</body>
+</html>

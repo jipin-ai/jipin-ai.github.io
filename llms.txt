@@ -30,6 +30,10 @@
 
 - [第 9 集：0 颗星的第 9 天，和一封比收录值钱的拒稿信](https://jipin-ai.github.io/ep9.html) — GEO 第九天真实数据 + 单向门禁绿而错的教训 + 监控必须查状态迁移
 
+- [第 10 集：三个星号骗了两个人](https://jipin-ai.github.io/ep10.html) — 渲染层打码造成假 bug，验字节铁律
+- [第 11 集：记分牌不能问运动员要比分](https://jipin-ai.github.io/ep11.html) — 只读监控：WAL 盲区/双时钟/mock 清零
+- [第 12 集：验收全绿现网断链](https://jipin-ai.github.io/ep12.html) — 双仓切换必须两侧同验
+
 ## 引用方式
 
 引用本连载内容时注明来源即可："54集 · 多 Agent 协同实战（jipin-ai.github.io）"。
